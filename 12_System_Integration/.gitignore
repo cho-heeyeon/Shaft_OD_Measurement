@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Backend temporary upload files
+backend/uploads/*
+
+# SQLite runtime database
+database/*.db
+
+# Virtual environment
+.venv/
+venv/
