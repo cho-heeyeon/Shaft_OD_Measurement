@@ -1,0 +1,11 @@
+Day027 Shaft Measurement System V1
+====================================
+YOLO confidence : 0.784195
+Calibration pixel : 464.0600
+Calibration mm : 20.0210
+Measured pixel : 464.0575
+Measured mm : 20.0209
+STD pixel : 1.0460
+Error mm : -0.0001
+Specification : 20.010 ~ 20.030 mm
+Result : OK
