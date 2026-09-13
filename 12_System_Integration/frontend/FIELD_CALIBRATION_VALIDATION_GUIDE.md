@@ -47,3 +47,20 @@ python -m streamlit run frontend\streamlit_app_mobile_v2.py --server.address 0.0
 ```
 
 기존 FastAPI는 별도 터미널에서 실행합니다.
+
+## 실패 시 재촬영 / 초기화
+- **Calibration A/B/C 중 한 시편만 실패**: `Calibration 재촬영 / 초기화`에서 해당 시편을 선택 → 삭제 확인 체크 → `선택 시편만 초기화 → 재촬영` 실행
+  - 해당 시편의 CSV 기록과 촬영 이미지가 삭제됨
+  - 기존 Calibration 식은 무효화됨
+  - 이전 Validation 기록/승인도 자동 초기화됨
+  - 다른 Calibration 시편 기록은 유지됨
+- **Calibration 전체를 다시 시작**: `Calibration 전체 초기화` 사용
+  - A/B/C 기록·이미지·Calibration 식 삭제
+  - Validation 기록/승인도 함께 초기화
+- **Validation D/E/F 중 한 시편만 실패**: `Validation 재촬영 / 초기화`에서 해당 시편만 초기화 후 재촬영
+  - 해당 Validation 시편의 CSV 기록과 촬영 이미지가 삭제됨
+  - Measurement 사용 승인은 자동 해제됨
+  - Calibration 식은 유지됨
+- **Validation 전체를 다시 시작**: `Validation 전체 초기화` 사용
+
+> 잘못된 촬영값을 단순히 평균에 포함시키지 말고, 실패 원인을 확인한 뒤 해당 시편 기록을 초기화하고 동일 촬영조건에서 재촬영하세요.

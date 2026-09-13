@@ -121,6 +121,60 @@ def read_csv_safe(path):
         return pd.DataFrame()
 
 
+def delete_sample_records(csv_path, sample_id):
+    """선택 시편의 CSV 기록과 연결된 촬영 이미지만 삭제한다."""
+    df = read_csv_safe(csv_path)
+    if df.empty or "sample_id" not in df.columns:
+        return 0, 0
+
+    mask = df["sample_id"].astype(str) == str(sample_id)
+    target = df[mask].copy()
+    remain = df[~mask].copy()
+
+    deleted_images = 0
+    if "image_path" in target.columns:
+        for raw_path in target["image_path"].dropna().astype(str):
+            try:
+                image_path = Path(raw_path)
+                if image_path.exists() and image_path.is_file():
+                    image_path.unlink()
+                    deleted_images += 1
+            except Exception:
+                # 이미지 삭제 실패가 CSV 초기화 전체를 막지 않도록 한다.
+                pass
+
+    deleted_records = int(len(target))
+    if remain.empty:
+        if csv_path.exists():
+            csv_path.unlink()
+    else:
+        remain.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+    return deleted_records, deleted_images
+
+
+def clear_all_records(csv_path, image_folder=None):
+    """CSV 전체와 해당 단계의 저장 이미지를 초기화한다."""
+    deleted_records = 0
+    df = read_csv_safe(csv_path)
+    if not df.empty:
+        deleted_records = int(len(df))
+
+    if csv_path.exists():
+        csv_path.unlink()
+
+    deleted_images = 0
+    if image_folder is not None and image_folder.exists():
+        for image_path in image_folder.glob("*.jpg"):
+            try:
+                image_path.unlink()
+                deleted_images += 1
+            except Exception:
+                pass
+
+    return deleted_records, deleted_images
+
+
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -377,8 +431,10 @@ with tab_cal:
             try:
                 new_cal = fit_calibration(summary, spec_lower, spec_upper, repeat_target)
                 save_json(CALIBRATION_FILE, new_cal)
+                # 새 Calibration 식을 만들면 이전 Validation 데이터는 새 식의 검증으로 사용할 수 없다.
+                clear_all_records(VAL_CSV, VAL_DIR)
                 reset_validation_status("New calibration created; independent validation required")
-                st.success("Calibration 식을 저장했습니다. 다음은 ② 독립 Validation입니다.")
+                st.success("Calibration 식을 저장했습니다. 이전 Validation 기록은 초기화되었으며, 다음은 ② 독립 Validation입니다.")
                 st.code(
                     f"mm = {new_cal['a']:.10f} × pixel + {new_cal['b']:.10f}\n"
                     f"Reference fit R² = {new_cal['r2_reference_fit']:.6f}",
@@ -399,15 +455,65 @@ with tab_cal:
         st.warning("A/B/C 각각 목표 반복 횟수까지 저장해야 Calibration 식을 산출합니다.")
 
     st.divider()
-    with st.expander("Calibration 데이터 초기화"):
-        st.warning("현장 테스트를 새로 시작할 때만 사용하세요.")
-        if st.button("Calibration 기록/식 초기화"):
-            if CAL_CSV.exists():
-                CAL_CSV.unlink()
+    with st.expander("Calibration 재촬영 / 초기화"):
+        st.info(
+            "A/B/C 중 한 시편의 반복 촬영이 실패했으면 해당 시편만 지우고 다시 촬영할 수 있습니다. "
+            "선택 시편을 지우면 기존 Calibration 식과 Validation 승인은 무효화됩니다."
+        )
+
+        reset_cal_id = st.selectbox(
+            "재촬영할 Calibration 시편",
+            ["A", "B", "C"],
+            key="reset_cal_sample_id",
+        )
+        confirm_sample_reset = st.checkbox(
+            f"{reset_cal_id} 기록과 촬영 이미지를 삭제하고 재촬영하겠습니다.",
+            key="confirm_cal_sample_reset",
+        )
+        if st.button(
+            f"🗑️ {reset_cal_id}만 초기화 → 재촬영",
+            disabled=not confirm_sample_reset,
+            use_container_width=True,
+        ):
+            deleted_records, deleted_images = delete_sample_records(CAL_CSV, reset_cal_id)
             if CALIBRATION_FILE.exists():
                 CALIBRATION_FILE.unlink()
-            reset_validation_status("Calibration reset")
-            st.success("Calibration 기록을 초기화했습니다.")
+
+            # Calibration이 바뀌면 이전 Validation 결과는 더 이상 유효하지 않다.
+            clear_all_records(VAL_CSV, VAL_DIR)
+            reset_validation_status(f"Calibration sample {reset_cal_id} reset; validation must be repeated")
+            st.session_state.pop(f"last_cal_hash_{reset_cal_id}", None)
+
+            st.success(
+                f"{reset_cal_id} 초기화 완료: 기록 {deleted_records}건, 이미지 {deleted_images}개 삭제. "
+                "이제 같은 시편을 처음부터 다시 촬영하세요."
+            )
+            st.rerun()
+
+        st.divider()
+        st.warning(
+            "아래 전체 초기화는 A/B/C Calibration을 모두 처음부터 다시 할 때만 사용하세요. "
+            "연결된 Validation 기록/승인도 함께 초기화됩니다."
+        )
+        confirm_all_cal_reset = st.checkbox(
+            "Calibration A/B/C 전체 기록과 촬영 이미지를 모두 삭제하겠습니다.",
+            key="confirm_all_cal_reset",
+        )
+        if st.button(
+            "🗑️ Calibration 전체 초기화",
+            disabled=not confirm_all_cal_reset,
+            use_container_width=True,
+        ):
+            deleted_records, deleted_images = clear_all_records(CAL_CSV, CAL_DIR)
+            if CALIBRATION_FILE.exists():
+                CALIBRATION_FILE.unlink()
+            clear_all_records(VAL_CSV, VAL_DIR)
+            reset_validation_status("Calibration reset; validation must be repeated")
+            for sid in ["A", "B", "C"]:
+                st.session_state.pop(f"last_cal_hash_{sid}", None)
+            st.success(
+                f"Calibration 전체 초기화 완료: 기록 {deleted_records}건, 이미지 {deleted_images}개 삭제."
+            )
             st.rerun()
 
 
@@ -532,12 +638,52 @@ with tab_val:
             st.info("아직 Validation 데이터가 없습니다.")
 
         st.divider()
-        with st.expander("Validation 데이터 초기화"):
-            if st.button("Validation 기록/승인 초기화"):
-                if VAL_CSV.exists():
-                    VAL_CSV.unlink()
+        with st.expander("Validation 재촬영 / 초기화"):
+            st.info(
+                "D/E/F 중 한 시편의 검증 촬영이 실패했으면 해당 시편만 지우고 다시 촬영할 수 있습니다. "
+                "선택 시편을 지우면 Measurement 사용 승인은 자동 해제됩니다."
+            )
+
+            reset_val_id = st.selectbox(
+                "재촬영할 Validation 시편",
+                ["D", "E", "F"],
+                key="reset_val_sample_id",
+            )
+            confirm_val_sample_reset = st.checkbox(
+                f"{reset_val_id} 기록과 촬영 이미지를 삭제하고 재검증하겠습니다.",
+                key="confirm_val_sample_reset",
+            )
+            if st.button(
+                f"🗑️ {reset_val_id}만 초기화 → 재촬영",
+                disabled=not confirm_val_sample_reset,
+                use_container_width=True,
+            ):
+                deleted_records, deleted_images = delete_sample_records(VAL_CSV, reset_val_id)
+                reset_validation_status(f"Validation sample {reset_val_id} reset")
+                st.session_state.pop(f"last_val_hash_{reset_val_id}", None)
+                st.success(
+                    f"{reset_val_id} 초기화 완료: 기록 {deleted_records}건, 이미지 {deleted_images}개 삭제. "
+                    "이제 같은 시편을 처음부터 다시 촬영하세요."
+                )
+                st.rerun()
+
+            st.divider()
+            confirm_all_val_reset = st.checkbox(
+                "Validation D/E/F 전체 기록과 촬영 이미지를 모두 삭제하겠습니다.",
+                key="confirm_all_val_reset",
+            )
+            if st.button(
+                "🗑️ Validation 전체 초기화",
+                disabled=not confirm_all_val_reset,
+                use_container_width=True,
+            ):
+                deleted_records, deleted_images = clear_all_records(VAL_CSV, VAL_DIR)
                 reset_validation_status("Validation reset")
-                st.success("Validation 기록을 초기화했습니다.")
+                for sid in ["D", "E", "F"]:
+                    st.session_state.pop(f"last_val_hash_{sid}", None)
+                st.success(
+                    f"Validation 전체 초기화 완료: 기록 {deleted_records}건, 이미지 {deleted_images}개 삭제."
+                )
                 st.rerun()
 
 
