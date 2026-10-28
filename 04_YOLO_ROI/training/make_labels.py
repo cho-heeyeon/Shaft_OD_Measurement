@@ -7,16 +7,20 @@ from pathlib import Path
 # 1. 경로 설정
 # ---------------------------------
 
+# ------------------------------
+# 1. 경로 설정
+# ------------------------------
+
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 
 base_dir = ROOT / "02_Data" / "04_YOLO_Dataset"
 
-image_dir = base_dir / "images"
-label_dir = base_dir / "labels"
+image_dir = base_dir / "images" / "train"
+label_dir = base_dir / "labels" / "train"
 
-label_dir.mkdir(exist_ok=True)
+label_dir.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------
