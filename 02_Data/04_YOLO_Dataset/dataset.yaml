@@ -1,1 +1,7 @@
 
+path: .
+
+train: images/train
+
+names:
+  0: measurement_roi
