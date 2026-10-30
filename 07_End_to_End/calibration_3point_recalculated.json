@@ -1,0 +1,40 @@
+{
+  "method": "V3 Reflection / same final shaft ROI / representative=median / NO3 robust MAD outlier review",
+  "shaft_roi_base": [
+    8008,
+    3329,
+    8280,
+    4276
+  ],
+  "excluded": {
+    "NO6": [
+      "20261021_154352.jpg"
+    ],
+    "NO3_rule": "MAD robust z > 3.5 only"
+  },
+  "points": [
+    {
+      "sample": "NO2",
+      "pixel": 749.8893245777906,
+      "mm": 20.02,
+      "n_valid": 10
+    },
+    {
+      "sample": "NO3",
+      "pixel": 748.836126323346,
+      "mm": 20.028,
+      "n_valid": 10
+    },
+    {
+      "sample": "NO6",
+      "pixel": 748.6225082513815,
+      "mm": 20.011,
+      "n_valid": 9
+    }
+  ],
+  "a": 0.0023942128453839483,
+  "b": 18.22612354938321,
+  "r2": 0.036449783915076917,
+  "monotonic": false,
+  "equation": "mm = 0.002394212845 * pixel + 18.226123549383"
+}
