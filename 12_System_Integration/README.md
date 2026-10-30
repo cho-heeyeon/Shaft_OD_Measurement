@@ -1,430 +1,334 @@
-# 12. System Integration — Shaft OD Measurement System
+# 12. System Integration
 
-## 1. 목적
+## 1. 개요
 
-본 단계에서는 기존에 개발한 YOLO + OpenCV 기반
-샤프트 외경 자동측정 End-to-End V1을
-Backend, Database, Frontend와 연결하여 하나의 시스템으로 통합하였다.
+본 폴더는 **YOLO + OpenCV 기반 자동차 조향장치 샤프트 외경 자동측정 시스템**을 현장 적용 형태로 확장하기 위한 시스템 통합 구조를 정리한다.
 
-기존 측정 알고리즘의 처리 흐름은 다음과 같다.
+프로젝트의 측정 알고리즘은 다음 흐름으로 구성된다.
 
-이미지 입력  
-→ YOLO ROI 탐지  
-→ OpenCV 정밀 Edge 측정  
-→ Pixel 외경 계산  
-→ Calibration  
-→ mm 변환  
-→ 도면 규격 비교  
-→ OK/NG 판정
+**이미지 입력 → ROI 탐색/설정 → V3 Reflection Edge 검출 → 정밀 Edge 처리 → Pixel 외경 계산 → Calibration → mm 변환 → 규격 비교 → OK/NG 판정**
 
-System Integration 단계에서는 여기에 다음 기능을 추가하였다.
-
-Streamlit Frontend  
-→ FastAPI Backend  
-→ Measurement Engine  
-→ SQLite Database
-
-이를 통해 사용자가 이미지를 업로드하면
-측정 엔진이 외경을 계산하고,
-측정 결과를 화면에 표시하면서
-Database에 측정 이력을 저장하는 기본 시스템 구조를 구현하였다.
-
+`12_System_Integration`에서는 이러한 측정엔진을 Backend, Frontend, Database와 연결하여 실제 현장에서 사용할 수 있는 시스템 구조로 확장하였다.
 
 ---
 
-## 2. 전체 시스템 구조
-
-현재 구현된 시스템의 전체 흐름은 다음과 같다.
+## 2. 시스템 구성
 
 ```text
-사용자
-  ↓
-Streamlit Frontend
-  ↓
-이미지 Upload
-  ↓
-FastAPI Backend
-  ↓
-POST /measure
-  ↓
-YOLO ROI Detection
-  ↓
-OpenCV Precision Measurement
-  ↓
-Calibration
-  ↓
-mm 변환
-  ↓
-도면 규격 비교
-  ↓
-OK / NG 판정
-  ↓
-SQLite Database 저장
-  ↓
-Streamlit 측정 결과 표시
-
-3. 프로젝트 구조
-
 12_System_Integration/
 │
-├── backend/
-│   ├── main.py
-│   ├── uploads/
-│   └── images/
-│       ├── backend_health_200.png
-│       └── backend_measure_200.png
+├─ backend/
 │
-├── database/
-│   ├── database.py
-│   ├── measurement.db
-│   └── images/
-│       ├── database_measure_save_200.png
-│       └── database_record_check.png
+├─ database/
 │
-├── frontend/
-│   ├── streamlit_app.py
-│   └── images/
-│       └── frontend_measure_result.png
+├─ frontend/
 │
-├── measurement/
-│   ├── measurement_engine.py
-│   ├── models/
-│   │   └── best.pt
-│   ├── images/
-│   └── output/
+├─ measurement/
+│  ├─ images/
+│  ├─ models/
+│  ├─ output/
+│  ├─ measurement_engine.py
+│  └─ measurement_engine_EDGE_V3_REFLECTION.py
 │
-└── README.md
+├─ measurement_data/
+│  └─ results/
+│     └─ calibration_records.csv
+│
+├─ .gitignore
+├─ README.md
+└─ start_field_measurement.bat
+```
 
-4. Measurement Engine
+---
 
-measurement/measurement_engine.py는
-기존 Day027 End-to-End V1 측정 로직을
-System Integration 구조에서 사용할 수 있도록 구성한 측정 엔진이다.
+## 3. 폴더별 역할
 
-주요 처리 과정은 다음과 같다.
+### `backend/`
 
-입력 이미지
-↓
-YOLO 모델
-↓
-샤프트 ROI 탐지
-↓
-OpenCV 영상 처리
-↓
-Gradient 기반 Edge 탐색
-↓
-Multi-point 측정
-↓
-Sub-pixel Edge 계산
-↓
-Pixel 외경 계산
-↓
-Calibration
-↓
-mm 변환
-↓
-규격 비교
-↓
+측정엔진을 외부 시스템에서 호출할 수 있도록 연결하기 위한 Backend 영역이다.
+
+향후 FastAPI 기반 API 형태로 확장하여 다음 기능을 제공할 수 있다.
+
+- 이미지 입력
+- 측정 실행
+- 측정결과 반환
+- OK/NG 판정값 전달
+- 측정 이력 저장 연계
+
+---
+
+### `frontend/`
+
+사용자가 측정시스템을 쉽게 사용할 수 있도록 하는 화면 영역이다.
+
+Frontend에서는 다음 정보를 표시할 수 있다.
+
+- 입력 이미지
+- 측정 ROI
+- Edge 검출 결과
+- Pixel 측정값
+- mm 변환값
+- 규격 상·하한
+- OK/NG 판정
+- 측정 이력
+
+---
+
+### `database/`
+
+측정결과와 검사 이력을 저장하기 위한 영역이다.
+
+향후 다음 항목을 저장하여 품질 추적성과 분석에 활용할 수 있다.
+
+- 측정 일시
+- 시편 ID
+- Pixel 측정값
+- mm 측정값
+- 기준 실측값
+- 규격
+- OK/NG
+- Calibration 정보
+- 사용 알고리즘 버전
+
+---
+
+## 4. Measurement Engine
+
+### 최종 기준 측정엔진
+
+```text
+measurement/measurement_engine_EDGE_V3_REFLECTION.py
+```
+
+본 프로젝트의 최종 기준 측정엔진은 **V3 Reflection Edge 방식**이다.
+
+주요 기능은 다음과 같다.
+
+- 실제 측정부 ROI 기반 측정
+- Upper Edge 검출
+- Lower Edge 검출
+- Gradient 방향 기반 Edge 후보 선택
+- Multi-point Edge 측정
+- Sub-pixel Edge 위치 산출
+- Median 기반 대표값 산출
+- MAD 기반 이상점 제거
+- Line Fitting
+- Reflection Edge 대응
+- Pixel 외경 계산
+- Calibration 기반 mm 변환
+- 도면 규격 기반 OK/NG 판정
+
+---
+
+## 5. 기존 Measurement Engine
+
+```text
+measurement/measurement_engine.py
+```
+
+`measurement_engine.py`는 프로젝트 초기 및 이전 단계에서 사용한 기본 측정엔진이다.
+
+현재 프로젝트의 최종 성능평가 및 정밀 Edge 측정 기준은 다음 파일을 사용한다.
+
+```text
+measurement_engine_EDGE_V3_REFLECTION.py
+```
+
+따라서 `measurement_engine.py`는 개발 이력 및 이전 버전 비교를 위한 파일로 유지한다.
+
+---
+
+## 6. V3 Reflection Edge 적용 배경
+
+실제 금속 샤프트 영상에서는 다음 문제가 발생하였다.
+
+- 금속 표면 반사
+- 가공무늬
+- 내부 Edge 오검출
+- 실제 외곽 Edge와 반사 Edge의 혼동
+- 촬영조건에 따른 Edge 위치 변화
+
+초기 Edge 방식에서는 강한 내부 Edge를 실제 샤프트 외곽으로 선택하는 사례가 발생하였다.
+
+이를 개선하기 위해 V3에서는 실제 샤프트 외곽 경계를 보다 안정적으로 추적하는 **Reflection Edge 처리 방식**을 적용하였다.
+
+---
+
+## 7. 측정 ROI
+
+최종 측정에서는 샤프트의 실제 외경 측정부를 ROI로 사용한다.
+
+ROI 설정 시 다음 원칙을 적용하였다.
+
+- 실제 제품 측정부와 영상 ROI 위치 일치
+- 단차부 제외
+- 형상 변화부 제외
+- 반사 영향이 큰 영역 최소화
+- 동일 시편 간 측정위치 표준화
+
+최종 성능평가에서는 실제 외경 측정부 **10.2 mm 영역**을 기준으로 설정하고, 그중 **중앙 5 mm 영역**을 최종 표준 측정구간으로 사용하였다.
+
+중앙 5 mm를 적용한 목적은 단순히 측정값을 개선하기 위한 것이 아니라 다음 영향을 줄이기 위한 것이다.
+
+- 양끝 단차 영향
+- 형상 변화
+- 반사 Edge
+- 측정위치 불일치
+- 표면거칠기 측정위치와 영상 측정위치 차이
+
+---
+
+## 8. Calibration
+
+최종 Pixel → mm 변환에는 다음 선형식을 적용하였다.
+
+```text
+mm = 0.002394212845 × pixel + 18.226123549383
+```
+
+대표 Pixel은 유효 Edge Point의 **Median**을 기준으로 계산한다.
+
+Calibration 결과 및 관련 기록은 다음 위치에서 관리한다.
+
+```text
+measurement_data/results/
+└─ calibration_records.csv
+```
+
+현재 Calibration은 Pilot/PoC 단계에서 구축된 것이므로 다른 촬영조건이나 광학계에 그대로 적용해서는 안 된다.
+
+---
+
+## 9. 측정 흐름
+
+최종 측정 흐름은 다음과 같다.
+
+```text
+Input Image
+     ↓
+ROI Detection / ROI Setting
+     ↓
+V3 Reflection Edge Detection
+     ↓
+Upper / Lower Edge
+     ↓
+Sub-pixel Processing
+     ↓
+Line Fitting + MAD
+     ↓
+Representative Pixel
+     ↓
+Pixel → mm Calibration
+     ↓
+Specification Comparison
+     ↓
 OK / NG
+```
 
-5. Calibration 및 규격 판정
+YOLO는 측정 위치를 찾는 역할을 담당하며, 외경값 자체는 OpenCV 정밀 Edge 측정을 통해 계산한다.
 
-현재 V1에서 사용한 Calibration 기준값은 다음과 같다.
+---
 
-Calibration pixel : 464.0600 px
-Calibration reference : 20.0210 mm
+## 10. 현장 실행
 
-제품 규격은 다음과 같다.
+현장 실행을 위한 시작 스크립트는 다음 파일이다.
 
-Ø20.020 ± 0.010 mm
+```text
+start_field_measurement.bat
+```
 
-따라서 판정 범위는 다음과 같다.
+이 파일을 통해 측정 관련 서비스 또는 프로그램을 순차적으로 실행할 수 있도록 구성하였다.
 
-20.010 mm ≤ 측정값 ≤ 20.030 mm
+실제 실행환경에서는 Python 환경, Backend, Frontend, Database 설정을 확인한 후 실행해야 한다.
 
-이 범위 안이면 OK,
-범위를 벗어나면 NG로 판정한다.
+---
 
-현재 Calibration은 단일 기준값을 이용한 V1 구조이며,
-복수 기준물을 이용한 Calibration 및 독립 Validation은
-추가 검증이 필요하다.
+## 11. 측정 데이터 관리
 
-6. FastAPI Backend
+측정 및 Calibration 관련 결과는 다음 위치에서 관리한다.
 
-Backend는 FastAPI를 이용하여 구성하였다.
+```text
+measurement_data/
+└─ results/
+   └─ calibration_records.csv
+```
 
-주요 API는 다음과 같다.
+측정 결과와 Calibration 기록을 분리하여 관리함으로써 향후 다음 작업에 활용할 수 있다.
 
-GET /health
+- Calibration 이력관리
+- 측정값 추적
+- 장비 조건 비교
+- 알고리즘 버전 비교
+- 품질 분석
 
-서버가 정상적으로 실행되고 있는지 확인하기 위한 API이다.
+---
 
-실행 테스트 결과 HTTP 상태코드 200 응답을 확인하였다.
+## 12. 프로젝트 내 역할 구분
 
-POST /measure
+본 시스템에서 각 구성요소의 역할은 다음과 같다.
 
-사용자가 업로드한 샤프트 이미지를
-측정 엔진으로 전달하기 위한 API이다.
+| 구성 | 역할 |
+|---|---|
+| YOLO | 측정 대상 ROI 탐색 |
+| OpenCV V3 | 실제 외곽 Edge 정밀 측정 |
+| Calibration | Pixel → mm 변환 |
+| 판정 로직 | 규격 비교 및 OK/NG |
+| Backend | 측정 알고리즘 서비스화 |
+| Frontend | 측정 결과 표시 |
+| Database | 측정결과 및 이력 저장 |
+| Batch Script | 현장 실행 지원 |
 
-처리 과정은 다음과 같다.
+---
 
-이미지 Upload
-↓
-FastAPI
-↓
-Measurement Engine 실행
-↓
-측정 결과 생성
-↓
-Database 저장
-↓
-Response 반환
+## 13. 현재 시스템의 의미
 
-실제 sample_07.jpg를 업로드하여
-HTTP 상태코드 200과 측정 결과 반환을 확인하였다.
+본 시스템은 다음 기능을 하나의 흐름으로 연결하였다.
 
-7. 측정 실행 결과
+**영상 입력 → 측정영역 결정 → 정밀 Edge 측정 → 실제 치수 변환 → 규격 판정 → 결과 관리**
 
-System Integration 테스트에서는
-sample_07.jpg를 입력 이미지로 사용하였다.
+이를 통해 단순 OpenCV 실험 수준을 넘어 **현장 적용을 고려한 End-to-End 측정시스템 구조**를 구성하였다.
 
-확인된 실행 결과는 다음과 같다.
+다만 현재 단계는 Pilot / PoC 수준이다.
 
-| 항목                |                 결과 |
-| ----------------- | -----------------: |
-| YOLO confidence   |           0.784195 |
-| Calibration pixel |        464.0600 px |
-| Calibration mm    |         20.0210 mm |
-| Measured pixel    |        464.0575 px |
-| Measured mm       |         20.0209 mm |
-| STD pixel         |          1.0460 px |
-| Error             |         -0.0001 mm |
-| Specification     | 20.010 ~ 20.030 mm |
-| Result            |                 OK |
+현재 결과만으로 다음 항목이 검증되었다고 판단하지 않는다.
 
+- ±0.010 mm 양산 측정능력
+- Gauge R&R 수준의 반복성·재현성
+- 장기간 생산환경 안정성
+- 다양한 실제 제품에 대한 일반화 성능
 
-이 결과는 측정 엔진과 Backend가 연결되어
-전체 처리 과정이 실행됨을 확인한 결과이다.
+---
 
-단, sample_07은 Calibration 기준에 사용된 이미지이므로
--0.0001 mm 결과를 독립적인 측정 정확도 검증 결과로
-해석해서는 안 된다.
+## 14. 향후 개선 방향
 
-8. SQLite Database
+향후 실제 양산 측정시스템으로 확장하기 위해 다음 항목을 우선적으로 검토한다.
 
-측정 결과를 저장하기 위해
-SQLite Database를 구성하였다.
+1. Telecentric Lens 적용
+2. 산업용 Global Shutter Camera 적용
+3. Backlight 기반 Silhouette 촬영
+4. 고정 Jig 및 광축 정렬
+5. 복수 기준물 Calibration
+6. Calibration / Independent Validation 완전 분리
+7. Edge Quality Gate 및 Reject Logic
+8. 반복성·재현성 평가
+9. 생산환경 Pilot Test
+10. 측정 이력 Database 및 Dashboard 연계
 
-Database 파일은 다음과 같다.
+---
 
-database/measurement.db
+## 15. 최종 정리
 
-측정 시 저장하는 주요 정보는 다음과 같다.
+`12_System_Integration`은 본 프로젝트에서 개발한 샤프트 외경 측정 알고리즘을 실제 현장 시스템 구조로 확장하기 위한 통합 단계이다.
 
-측정 일시
-이미지 파일명
-YOLO confidence
-측정 Pixel
-측정 mm
-규격 하한
-규격 상한
-OK/NG 결과
-
-실제 /measure API 실행 후
-SQLite Database에 측정 결과가 저장되는 것을 확인하였다.
-Database 조회를 통해 저장된 측정 기록도 확인하였다.
-
-
-9. Streamlit Frontend
-
-사용자가 측정 시스템을 쉽게 사용할 수 있도록
-Streamlit 기반 Frontend를 구성하였다.
-
-사용자는 화면에서 샤프트 이미지를 선택하고
-외경 측정을 실행할 수 있다.
-
-Frontend의 기본 흐름은 다음과 같다.
-
-샤프트 이미지 선택
-↓
-외경 측정
-↓
-FastAPI /measure 요청
-↓
-측정 엔진 실행
-↓
-측정 결과 수신
-↓
-화면 표시
-
-실제 sample_07.jpg를 업로드하여
-측정 결과가 Streamlit 화면에 표시되는 것을 확인하였다.
-
-
-10. System Integration에서 확인된 기능
-
-현재 단계에서 실제 실행으로 확인한 기능은 다음과 같다.
-
-| 기능                    | 상태          |
-| --------------------- | ----------- |
-| YOLO ROI 탐지           | 구현          |
-| OpenCV 외경 측정          | 구현          |
-| Multi-point 측정        | 구현          |
-| Sub-pixel 처리          | 구현          |
-| Pixel → mm 변환         | 구현          |
-| 규격 비교                 | 구현          |
-| OK/NG 판정              | 구현          |
-| Measurement Engine 실행 | 확인          |
-| FastAPI Backend       | 구현          |
-| GET /health           | HTTP 200 확인 |
-| POST /measure         | HTTP 200 확인 |
-| 이미지 Upload            | 확인          |
-| 측정 결과 API 반환          | 확인          |
-| SQLite Database       | 구현          |
-| 측정 결과 Database 저장     | 확인          |
-| Database 기록 조회        | 확인          |
-| Streamlit Frontend    | 구현          |
-| Streamlit 측정 결과 표시    | 확인          |
-
-
-
-11. 현재 구현과 현장 적용의 구분
-
-이번 System Integration을 통해
-소프트웨어 수준의 기본 통합 시스템은 구현하였다.
-
-그러나 실제 생산라인 적용이 완료된 것은 아니다.
-
-현재 구현
-저장 이미지
-↓
-Streamlit
-↓
-FastAPI
-↓
-YOLO + OpenCV
-↓
-Calibration
-↓
-OK / NG
-↓
-SQLite
-
-향후 현장 적용
-Industrial Camera
-↓
-Image Acquisition
-↓
-Edge PC / Server
-↓
-FastAPI Backend
-↓
-YOLO + OpenCV
-↓
-Calibration
-↓
-OK / NG
-↓
-Production Database
-↓
-Dashboard / MES / PLC
-
-따라서 현재 결과는
-현장 시스템으로 확장하기 위한
-소프트웨어 통합 V1으로 정의한다.
-
-
-12. 현장 적용 전 추가 검증
-
-현재 프로젝트에서는
-±0.010 mm 수준의 양산 측정성능이
-독립적으로 검증된 상태가 아니다.
-
-따라서 실제 생산현장 적용 전 다음 검증이 필요하다.
-
-서로 다른 실제 외경의 기준물 확보
-복수 기준물 Calibration
-Calibration과 Validation 데이터 분리
-독립 샤프트 측정
-기준 측정값과 Vision 측정값 비교
-반복 측정 안정성 평가
-제품 재장착 시험
-제품 위치 변화 시험
-조명 및 촬영조건 변화 시험
-실제 생산환경 Pilot Test
-
-
-13. 향후 시스템 확장
-
-향후 다음과 같은 기능 확장을 검토할 수 있다.
-
-Industrial Camera
-↓
-자동 Image Acquisition
-↓
-Measurement Server / Edge PC
-↓
-Vision Measurement
-↓
-OK / NG
-↓
-Database
-↓
-Dashboard
-↓
-PLC / MES / 품질관리 시스템
-
-특히 정밀 치수 측정을 위해서는
-알고리즘뿐만 아니라 다음 요소를 함께 검증해야 한다.
-
-Industrial Camera
-Camera Resolution
-Lens
-Telecentric Lens 적용 필요성
-Lighting
-제품 설치 위치
-촬영 거리
-Pixel/mm 해상도
-Calibration 방법
-반복성
-재장착 영향
-
-
-14. 결론
-
-본 단계에서는 기존 YOLO + OpenCV 기반
-샤프트 외경 측정 End-to-End V1을 기반으로
-
-Streamlit
-→ FastAPI
-→ Measurement Engine
-→ SQLite Database
-를 연결한 System Integration V1을 구현하였다.
-
-실제 이미지 업로드를 통해
-
-Backend 서버 동작
-이미지 전달
-측정 엔진 실행
-외경 측정
-규격 비교
-OK/NG 판정
-API 결과 반환
-Database 저장
-Frontend 결과 표시
-
-까지의 전체 소프트웨어 처리 흐름을 확인하였다.
-
-따라서 현재 프로젝트는
-단순한 외경 측정 알고리즘 구현에서 한 단계 확장되어
-Frontend, Backend, Measurement Engine, Database가 연결된
-통합 측정 시스템 V1 단계까지 구현되었다.
-
-다만 이는 실제 양산 측정성능과 생산라인 적용이
-검증 완료되었다는 의미는 아니다.
-
-향후 복수 기준물 Calibration,
-독립 Validation, 반복성 시험,
-광학계 표준화 및 생산환경 Pilot Test를 통해
-실제 현장 적용 가능성을 추가 검증해야 한다.
+최종 측정엔진은 다음 파일을 기준으로 한다.
+
+```text
+measurement/measurement_engine_EDGE_V3_REFLECTION.py
+```
+
+본 프로젝트의 핵심 시스템 구조는 다음과 같다.
+
+**ROI 탐색 → V3 Reflection Edge → 정밀 Pixel 측정 → Calibration → mm 변환 → OK/NG → Backend / Database / Frontend 연계**
+
+현재 시스템은 **기능 구현 및 Pilot 수준의 기술 가능성 검증 단계**이며, 향후 광학계와 고정조건을 안정화하고 Independent Validation 및 측정시스템 신뢰성 평가를 수행한 후 현업 적용 가능성을 최종 판단한다.
 
