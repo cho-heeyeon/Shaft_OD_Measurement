@@ -1,0 +1,3 @@
+﻿measurement_range,sample_count,bias_mm,bias_um,mae_mm,mae_um,max_abs_error_mm,max_abs_error_um,mean_std_px,total_valid_points,calibration_formula,representative_pixel_method
+central_5mm,3,0.0029,2.9,0.005033,5.033,0.0113,11.3,1.492,59,mm = 0.002394212845 * pixel + 18.226123549383,Median
+full_10.2mm,3,0.002433,2.433,0.0053,5.3,0.0105,10.5,1.534,77,mm = 0.002394212845 * pixel + 18.226123549383,Median

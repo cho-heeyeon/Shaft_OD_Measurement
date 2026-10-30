@@ -1,0 +1,7 @@
+﻿sample,measurement_range,valid_points,representative_pixel,std_px,vision_mm,actual_mm,error_mm,error_um
+NO2,central_5mm,23,749.523,1.157,20.0206,20.02,0.0006,0.6
+NO2,full_10.2mm,30,749.734,1.115,20.0211,20.02,0.0011,1.1
+NO9,central_5mm,21,749.366,1.711,20.0203,20.009,0.0113,11.3
+NO9,full_10.2mm,28,749.036,1.67,20.0195,20.009,0.0105,10.5
+NO10,central_5mm,15,748.768,1.608,20.0188,20.022,-0.0032,-3.2
+NO10,full_10.2mm,19,748.293,1.817,20.0177,20.022,-0.0043,-4.3
