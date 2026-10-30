@@ -1,0 +1,42 @@
+{
+  "project_stage": "End-to-End Prototype + Pilot Validation",
+  "calibration_status": "NOT_VALIDATED_DIAGNOSTIC_ONLY",
+  "image": "C:\\Users\\조희연\\OneDrive\\사진\\바탕 화면\\20261021촬영 데이터\\NO2\\20261021_153556.jpg",
+  "engine": "V3_priority_work\\measurement_engine_EDGE_V3_REFLECTION.py",
+  "image_size": {
+    "width": 16320,
+    "height": 7532
+  },
+  "shaft_roi": [
+    8008,
+    3329,
+    8280,
+    4276
+  ],
+  "measurement": {
+    "measured_pixel": 750.0172566994461,
+    "std_pixel": 0.6504928715959508,
+    "valid_point_count": 21
+  },
+  "diagnostic_calibration": {
+    "equation": "mm = 0.002394212845 * pixel + 18.226123549383",
+    "mm_per_pixel": 0.0023942128453839483,
+    "um_per_pixel": 2.394212845383948,
+    "r2": 0.036449783915076917,
+    "monotonic": false,
+    "note": "Diagnostic conversion only. Calibration linearity is not validated."
+  },
+  "diagnostic_result": {
+    "converted_mm": 20.021824499632654,
+    "spec_lower_mm": 20.01,
+    "spec_upper_mm": 20.03,
+    "status": "IN_SPEC_DIAGNOSTIC"
+  },
+  "reference_check": {
+    "reference_mm": 20.02,
+    "bias_mm": 0.0018244996326544083,
+    "absolute_error_mm": 0.0018244996326544083,
+    "absolute_error_um": 1.8244996326544083
+  },
+  "warning": "This result must not be used as final production metrology or authoritative OK/NG judgment."
+}

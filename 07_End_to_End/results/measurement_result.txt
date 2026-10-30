@@ -1,0 +1,32 @@
+Shaft OD End-to-End V3
+========================================
+Project stage : End-to-End Prototype + Pilot Validation
+Calibration status : NOT_VALIDATED_DIAGNOSTIC_ONLY
+Image : C:\Users\조희연\OneDrive\사진\바탕 화면\20261021촬영 데이터\NO2\20261021_153556.jpg
+Engine : V3_priority_work\measurement_engine_EDGE_V3_REFLECTION.py
+SHAFT ROI : (8008, 3329, 8280, 4276)
+
+[PIXEL MEASUREMENT]
+Measured pixel : 750.017257
+STD(pixel) : 0.650493
+Valid points : 21
+
+[DIAGNOSTIC PIXEL -> MM]
+Equation : mm = 0.002394212845 * pixel + 18.226123549383
+mm/pixel : 0.002394212845
+um/pixel : 2.394213
+R2 : 0.03644978
+Monotonic : False
+Converted diameter(mm) : 20.021824
+Specification(mm) : 20.010 ~ 20.030
+Diagnostic result : IN_SPEC_DIAGNOSTIC
+
+[REFERENCE CHECK]
+Reference(mm) : 20.020000
+Bias(mm) : +0.001824
+Absolute error(mm) : 0.001824
+Absolute error(um) : 1.824
+
+[WARNING]
+Current calibration is diagnostic only.
+Do not use this result as final production metrology or authoritative OK/NG judgment.
