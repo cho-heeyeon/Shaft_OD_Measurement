@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import json
+import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -80,19 +81,72 @@ def as_float(value, default=None):
     return float(m.group()) if m else default
 
 
-def call_measure_api(api_url, image_bytes, filename):
+def call_measure_api(api_url, image_bytes, filename, phase, calibration=None):
+    """Send phase so the backend uses the same active calibration and gate."""
     files = {"file": (filename, image_bytes, "image/jpeg")}
-    response = requests.post(api_url, files=files, timeout=120)
-    response.raise_for_status()
-    return response.json()
+    form_data = {"phase": phase}
+    if phase != "calibration":
+        if not calibration or not calibration.get("updated_at"):
+            raise ValueError("현재 Calibration 버전 정보가 없습니다.")
+        form_data["expected_calibration_updated_at"] = str(calibration["updated_at"])
+    response = requests.post(api_url, files=files, data=form_data, timeout=320)
+    if not response.ok:
+        try:
+            detail = response.json().get("detail", response.text)
+        except ValueError:
+            detail = response.text
+        raise RuntimeError(f"측정 API 오류 ({response.status_code}): {detail}")
+    payload = response.json()
+    if payload.get("status") != "success" or payload.get("engine") != "V3_REFLECTION":
+        raise ValueError("V3 응답 형식 또는 상태가 올바르지 않습니다.")
+    if payload.get("phase") != phase:
+        raise ValueError("요청 단계와 API 응답 단계가 다릅니다.")
+    return payload
 
 
 def extract_pixel_result(payload):
-    result_text = payload.get("result_text") or payload.get("measurement_result") or ""
-    parsed = parse_measurement_text(result_text)
-    measured_pixel = payload.get("measured_pixel", as_float(parsed.get("Measured pixel")))
-    confidence = payload.get("confidence", as_float(parsed.get("YOLO confidence")))
-    return measured_pixel, confidence, result_text
+    """Require a valid V3 pixel; do not silently consume stale TXT output."""
+    pixel = payload.get("measured_pixel")
+    try:
+        pixel = float(pixel)
+        count = int(payload["valid_point_count"])
+        std = float(payload["std_pixel"])
+    except (ValueError, TypeError, KeyError) as exc:
+        raise ValueError("V3 유효점 또는 대표 Pixel 정보가 없습니다.") from exc
+    if not math.isfinite(pixel) or pixel <= 0 or not 8 <= count <= 31 or not math.isfinite(std) or std < 0:
+        raise ValueError("V3 측정 품질 불충분: REJECT")
+    conf = payload.get("confidence")
+    if conf is not None:
+        conf = float(conf)
+        if not math.isfinite(conf):
+            conf = None
+    return pixel, conf, payload.get("measurement_result", "")
+
+
+def checked_measurement_mm(payload, calibration):
+    """Refuse measurements made with a different calibration version."""
+    if calibration is None:
+        raise ValueError("Calibration 파일이 없습니다.")
+    try:
+        server_a = float(payload["calibration_a"])
+        server_b = float(payload["calibration_b"])
+        server_mm = float(payload["measured_mm"])
+        server_lower = float(payload["spec_lower"])
+        server_upper = float(payload["spec_upper"])
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ValueError("Backend 응답의 Calibration 정보가 부족합니다.") from exc
+    if not all(math.isfinite(x) for x in (server_a, server_b, server_mm, server_lower, server_upper)):
+        raise ValueError("Backend Calibration 값이 유효하지 않습니다.")
+    if (not math.isclose(server_a, float(calibration["a"]), rel_tol=0, abs_tol=1e-12)
+            or not math.isclose(server_b, float(calibration["b"]), rel_tol=0, abs_tol=1e-10)
+            or payload.get("calibration_updated_at") != calibration.get("updated_at")
+            or not math.isclose(server_lower, float(calibration["spec_lower"]), abs_tol=1e-10)
+            or not math.isclose(server_upper, float(calibration["spec_upper"]), abs_tol=1e-10)):
+        raise ValueError("Backend와 Streamlit의 Calibration 버전/규격이 다릅니다. 측정을 저장하지 않습니다.")
+    calculated = pixel_to_mm(payload["measured_pixel"], calibration)
+    if abs(calculated - server_mm) > 1e-7:
+        raise ValueError("Backend와 Streamlit 측정 외경이 불일치합니다.")
+    return server_mm
 
 
 def save_image(image_bytes, folder, prefix, sample_id, repeat_no):
@@ -203,7 +257,11 @@ def pixel_to_mm(pixel, calibration):
 
 
 def get_validation_status():
-    return load_json(VALIDATION_FILE, {"approved": False}) or {"approved": False}
+    status = load_json(VALIDATION_FILE, {"approved": False}) or {"approved": False}
+    cal = load_calibration()
+    if not cal or status.get("calibration_updated_at") != cal.get("updated_at"):
+        return {"approved": False, "reason": "Calibration version changed"}
+    return status
 
 
 def reset_validation_status(reason="Calibration updated"):
@@ -350,7 +408,7 @@ with tab_cal:
     st.subheader("① 3점 반복 Calibration")
     st.info(
         "기준 샤프트 A/B/C의 신뢰 가능한 실측 mm를 입력하고 각 샤프트를 반복 촬영합니다. "
-        "기존 YOLO/OpenCV 측정 엔진이 각 사진에서 대표 Pixel을 반환합니다."
+        "V3 Reflection Edge 엔진이 각 사진에서 대표 Pixel을 반환합니다."
     )
 
     spec1, spec2 = st.columns(2)
@@ -391,7 +449,7 @@ with tab_cal:
                 try:
                     with st.spinner("YOLO/OpenCV 대표 Pixel 측정 중..."):
                         repeat_no = current_count + 1
-                        payload = call_measure_api(api_url, cal_bytes, f"CAL_{selected_cal_id}_{repeat_no:02d}.jpg")
+                        payload = call_measure_api(api_url, cal_bytes, f"CAL_{selected_cal_id}_{repeat_no:02d}.jpg", "calibration")
                         measured_pixel, confidence, _ = extract_pixel_result(payload)
                         if measured_pixel is None or float(measured_pixel) <= 0:
                             raise ValueError("Measured pixel을 얻지 못했습니다.")
@@ -560,12 +618,12 @@ with tab_val:
                     try:
                         with st.spinner("독립 검증 측정 중..."):
                             repeat_no = current_val_count + 1
-                            payload = call_measure_api(api_url, val_bytes, f"VAL_{selected_val_id}_{repeat_no:02d}.jpg")
+                            payload = call_measure_api(api_url, val_bytes, f"VAL_{selected_val_id}_{repeat_no:02d}.jpg", "validation", calibration)
                             measured_pixel, confidence, _ = extract_pixel_result(payload)
                             if measured_pixel is None or float(measured_pixel) <= 0:
                                 raise ValueError("Measured pixel을 얻지 못했습니다.")
 
-                            measured_mm = pixel_to_mm(measured_pixel, calibration)
+                            measured_mm = checked_measurement_mm(payload, calibration)
                             actual_mm = float(val_specs[selected_val_id])
                             error_mm = measured_mm - actual_mm
                             abs_error_mm = abs(error_mm)
@@ -724,15 +782,17 @@ with tab_meas:
             else:
                 try:
                     with st.spinner("YOLO/OpenCV Pixel → 검증된 Calibration → mm → OK/NG..."):
-                        payload = call_measure_api(api_url, meas_bytes, f"MEAS_{safe_id(selected_meas_id)}.jpg")
+                        payload = call_measure_api(api_url, meas_bytes, f"MEAS_{safe_id(selected_meas_id)}.jpg", "measurement", calibration)
                         measured_pixel, confidence, _ = extract_pixel_result(payload)
                         if measured_pixel is None or float(measured_pixel) <= 0:
                             raise ValueError("Measured pixel을 얻지 못했습니다.")
 
-                        measured_mm = pixel_to_mm(measured_pixel, calibration)
+                        measured_mm = checked_measurement_mm(payload, calibration)
                         spec_lower = float(calibration["spec_lower"])
                         spec_upper = float(calibration["spec_upper"])
                         result = "OK" if spec_lower <= measured_mm <= spec_upper else "NG"
+                        if payload.get("result") != result:
+                            raise ValueError("Backend 판정과 Streamlit 판정이 다릅니다.")
 
                         meas_df = read_csv_safe(MEAS_CSV)
                         repeat_no = 1
@@ -830,3 +890,4 @@ st.caption(
     "PoC 현장 검증용입니다. Calibration 시편과 Validation 시편은 분리해야 하며, "
     "Validation 합격기준은 제품 공차와 별도로 계측시스템 목적에 맞게 정해야 합니다."
 )
+
