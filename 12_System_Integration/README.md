@@ -417,38 +417,81 @@ Backend, Frontend, Database의 구현 및 연동 완료 범위는 실제 코드�
 - 측정 오류 처리 및 로그 관리
 - 생산환경 Pilot Test
 
-## 15. 최종 정리
+## 15. 시스템 통합 결과 및 향후 과제
 
-`12_System_Integration`은 본 프로젝트에서 개발한 샤프트 외경 측정 알고리즘을 현장 측정시스템으로 확장하기 위한 통합 구조이다.
+### 15.1 시스템 통합 결과
 
-최종 기준 측정엔진은 다음과 같다.
+본 프로젝트에서는 YOLO 기반 측정영역 탐색과 OpenCV V3 Reflection Edge 기반 정밀 외경 측정 알고리즘을 개발하고, FastAPI Backend 및 Streamlit Frontend를 활용한 현장 측정시스템 통합 구조를 구현하였다.
 
-```text
-measurement/
-└── measurement_engine_EDGE_V3_REFLECTION.py
-```
+주요 구현 및 확인 결과는 다음과 같다.
 
-핵심 처리 흐름은 다음과 같다.
+- V3 Reflection Edge 측정엔진 구현 및 단독 실행 확인
+- YOLO 모델을 이용한 측정영역 탐색 기능 구현
+- Sub-pixel, Line Fitting, MAD 및 Median 기반 외경 측정 기능 구현
+- 최종 Pixel-to-mm Calibration 회귀식 설정
+- FastAPI 서버 실행 및 Health Check 정상 응답 확인
+- Streamlit V2 현장 측정 화면 실행 확인
+- Calibration·Independent Validation·Measurement 기능 구성
+- SQLite 및 CSV 기반 측정 이력 저장 기능 구현
+
+다만 SQLite·CSV 저장 기능의 실제 End-to-End 통합시험은 추가 확인이 필요하다.
+
+### 15.2 시스템 처리 흐름
 
 ```text
 Image Input
     ↓
-ROI Detection / Setting
+YOLO ROI Detection / Setting
     ↓
-V3 Reflection Edge
+V3 Reflection Edge Detection
     ↓
-Precision Pixel Measurement
+Sub-pixel + Line Fitting + MAD
     ↓
-Calibration
+Representative Pixel Measurement
+    ↓
+Pixel-to-mm Calibration
     ↓
 Diameter (mm)
     ↓
+Specification Comparison
+    ↓
 OK / NG Decision
     ↓
-Backend / Database / Frontend Integration
+FastAPI / SQLite / Streamlit Integration
 ```
 
-본 시스템은 영상 기반 외경 자동측정의 기술적 가능성을 검토하고, 현장 적용을 위한 통합 구조를 수립한 단계에 있다.
+### 15.3 검증 범위 및 한계
 
-향후 광학계와 촬영조건을 안정화하고, Independent Validation 및 측정시스템 신뢰성 평가를 수행하여 실제 생산현장 적용 가능성을 판단할 예정이다.
+현재 시스템은 Pilot/PoC 단계의 기술적 가능성 검토 결과물이다.
+
+측정엔진 단독 실행과 Backend·Frontend 서버 구동을 확인하였으나, 다음 항목은 추가 검증이 필요하다.
+
+- 실제 End-to-End 측정 및 데이터 저장 검증
+- 최종 촬영조건에 대한 Independent Validation
+- 중앙 5 mm 표준 측정구간의 코드 정합성 확인
+- 측정 반복성 및 재현성 평가
+- 측정 불확도 및 판정 신뢰성 평가
+- ±0.010 mm 공차에 대한 양산 측정능력 검증
+- 장기간 생산환경 안정성 평가
+
+### 15.4 향후 개선 방향
+
+향후 현장 적용 및 양산 확장을 위해 다음 사항을 검토한다.
+
+- Telecentric Lens와 산업용 Global Shutter Camera 도입
+- Backlight 기반 Silhouette 촬영 및 고정 Jig 적용
+- 촬영거리·광축·측정위치 표준화
+- Edge Quality Gate 및 Reject Logic 강화
+- Calibration과 Independent Validation의 완전 분리
+- SQLite·CSV 저장 및 측정 이력 추적성 검증
+- Gauge R&R 및 측정 불확도 평가
+- 실제 생산환경 Pilot Test
+
+### 15.5 종합 결론
+
+`12_System_Integration`은 개발된 샤프트 외경 자동측정 알고리즘을 현장 적용을 고려한 시스템 구조로 확장한 결과물이다.
+
+V3 Reflection Edge 측정엔진과 FastAPI·Streamlit 기반 프로그램을 구성하고, 측정엔진 단독 실행 및 서버 구동을 확인하였다.
+
+현재 단계는 Pilot/PoC 수준이며, 실제 생산현장 적용 여부는 독립 Validation과 측정시스템 신뢰성 평가를 거쳐 최종 판단한다.
 
